@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XUL-J</title>
+  <meta name="description" content="XUL-J streams user interfaces as JSON operations over SSE or MQTT. Servers, devices and unmodified desktop apps describe what to show; any client renders it.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <nav class="wrap">
+      <a class="brand" href="#">XUL-J</a>
+      <span class="links">
+        <a href="#how">How it works</a>
+        <a href="#transports">Transports</a>
+        <a href="#bridges">Bridges</a>
+        <a href="#protocol">Protocol</a>
+        <a href="https://github.com/xul-j">GitHub</a>
+      </span>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero wrap">
+      <p class="eyebrow">An experiment in server-driven interfaces</p>
+      <h1>Stream the interface,<br>not the page.</h1>
+      <p class="lede">
+        XUL-J is a JSON version of Mozilla's XUL, sent as a stream of small operations. A server,
+        an MQTT device or an unmodified desktop application describes <em>what</em> to show and
+        <em>what can be done</em>. Any client decides how it looks: a browser, a terminal, or
+        something else. Clicks go back as intents.
+      </p>
+      <p class="cta">
+        <a class="button primary" href="#demo">Try the live demo</a>
+        <a class="button" href="https://github.com/xul-j/xul-j">Read the code</a>
+      </p>
+    </section>
+
+    <section id="demo" class="wrap">
+      <div class="demo-frame">
+        <iframe src="demo.html" title="XUL-J live demo: a deploy console built from streamed operations" loading="lazy"></iframe>
+      </div>
+      <p class="caption">
+        This runs the real XUL-J renderer. A small script in the page plays the server's part,
+        so the operations on the right are exactly what would arrive over the wire. Watch the
+        log placeholder fill in, a plugin add a <strong>Rollback</strong> button after the fact,
+        and pick <em>production</em> to get a modal confirmation.
+      </p>
+    </section>
+
+    <section id="how" class="wrap">
+      <h2>How it works</h2>
+      <div class="cols">
+        <div>
+          <p>
+            The server sends operations, one JSON object per line. Each one is valid on its own,
+            so a cut-off stream is never a broken document. It is just a shorter one.
+          </p>
+<pre><code><span class="c">// server → client</span>
+{"op":"command","id":"cmd_deploy","label":"Deploy","key":"ctrl+enter"}
+{"op":"node","in":"root","tag":"window","id":"win","label":"Deploy console"}
+{"op":"node","in":"win","tag":"toolbar","id":"tb","children":[
+  {"tag":"toolbarbutton","command":"cmd_deploy"}]}
+{"op":"node","in":"win","tag":"pending","id":"log","hint":"tree","flex":1}
+{"op":"replace","id":"log","tag":"tree","rows":{"source":"log"},…}
+{"op":"rows","source":"log","append":[{"t":"12:01","msg":"build ok"}]}
+{"op":"broadcast","id":"busy","value":true}
+
+<span class="c">// client → server</span>
+{"op":"do","command":"cmd_deploy"}
+{"op":"input","id":"filter","value":"error"}</code></pre>
+        </div>
+        <div>
+          <p>XUL already had the right ideas, and each one turns out to suit streaming:</p>
+          <dl class="ideas">
+            <dt>Stable ids and overlays</dt>
+            <dd>Every element can be addressed, so anything can be patched later. A node whose parent hasn't arrived yet simply waits for it.</dd>
+            <dt>Commands</dt>
+            <dd>Intents are separate from widgets. Disable <code>cmd_deploy</code> once, and its button, menu item and shortcut all follow.</dd>
+            <dt>Broadcasters</dt>
+            <dd>Named values that attributes observe: <code>observes: {"disabled": "busy"}</code>.</dd>
+            <dt>Boxes and flex</dt>
+            <dd>A half-arrived layout still looks reasonable, and a <code>pending</code> placeholder holds space until its widget arrives.</dd>
+            <dt>Data apart from structure</dt>
+            <dd>A tree is declared once and rows stream into it. 100,000 rows render as about 30 DOM nodes.</dd>
+          </dl>
+        </div>
+      </div>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 880 250" role="img" aria-labelledby="dg-title dg-desc">
+          <title id="dg-title">XUL-J architecture</title>
+          <desc id="dg-desc">Producers (a server app, an MQTT device, WinForms and Swing apps through bridges) emit XUL-J operations over SSE or MQTT to renderers (a browser, a terminal). Intents flow back.</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" class="fill-line"/>
+            </marker>
+          </defs>
+          <g class="box"><rect x="10" y="20" width="200" height="44" rx="8"/><text x="110" y="47">Server app (Node)</text></g>
+          <g class="box"><rect x="10" y="78" width="200" height="44" rx="8"/><text x="110" y="105">MQTT device</text></g>
+          <g class="box"><rect x="10" y="136" width="200" height="44" rx="8"/><text x="110" y="163">WinForms app + net-bridge</text></g>
+          <g class="box"><rect x="10" y="194" width="200" height="44" rx="8"/><text x="110" y="221">Swing app + java-bridge</text></g>
+
+          <g class="box accent"><rect x="330" y="62" width="220" height="56" rx="10"/><text x="440" y="86">XUL-J ops</text><text x="440" y="104" class="small">SSE · per session, resumable</text></g>
+          <g class="box accent"><rect x="330" y="136" width="220" height="56" rx="10"/><text x="440" y="160">XUL-J topics</text><text x="440" y="178" class="small">MQTT · retained = current UI</text></g>
+
+          <g class="box"><rect x="670" y="62" width="200" height="44" rx="8"/><text x="770" y="89">Browser renderer</text></g>
+          <g class="box"><rect x="670" y="136" width="200" height="44" rx="8"/><text x="770" y="163">Terminal / headless</text></g>
+
+          <g class="line">
+            <path d="M210 42 C270 42 270 82 330 82" marker-end="url(#arrow)"/>
+            <path d="M210 158 C270 158 270 98 330 98" marker-end="url(#arrow)"/>
+            <path d="M210 216 C270 216 270 108 330 108" marker-end="url(#arrow)"/>
+            <path d="M210 100 C270 100 270 158 330 158" marker-end="url(#arrow)"/>
+            <path d="M550 84 L670 84" marker-end="url(#arrow)"/>
+            <path d="M550 164 L670 160" marker-end="url(#arrow)"/>
+            <path d="M550 96 C610 96 610 150 670 150" marker-end="url(#arrow)"/>
+            <path d="M670 100 C620 120 600 120 550 112" class="back" marker-end="url(#arrow)"/>
+          </g>
+          <text x="610" y="128" class="small label">intents</text>
+        </svg>
+      </figure>
+    </section>
+
+    <section id="transports" class="wrap">
+      <h2>Two transports, one protocol</h2>
+      <div class="cards">
+        <article class="card">
+          <h3>SSE</h3>
+          <p>
+            The server keeps a numbered log of operations for each session. When a client
+            reconnects it sends <code>Last-Event-ID</code> and gets only what it missed. A new
+            client rebuilds the identical UI from the log. Intents arrive as small POSTs, checked
+            against the current commands, so a disabled button really is disabled.
+          </p>
+        </article>
+        <article class="card">
+          <h3>MQTT</h3>
+          <p>
+            Each widget is a <em>retained</em> topic, <code>xulj/&lt;app&gt;/node/&lt;id&gt;</code>,
+            so the broker holds the current interface. A late joiner gets it instantly with nothing
+            to replay, and the publisher holds no viewer connections. Any device that can publish
+            MQTT can publish its own UI, and its last will marks it offline.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section id="bridges" class="wrap">
+      <h2>Bridges: old desktop apps, served to browsers</h2>
+      <p>
+        The bridges host an <strong>unmodified</strong> desktop application. Each browser session
+        gets its own instance of the app's window, kept off-screen. The bridge walks the live
+        widget tree every 50 ms, compares it with the previous frame and streams only the
+        differences. Clicks and edits from the browser become real events on the real controls,
+        so the app's own handlers, validation and timers run as usual.
+      </p>
+      <div class="cards">
+        <article class="card">
+          <h3><a href="https://github.com/xul-j/net-bridge">net-bridge</a> <span class="tag">.NET WinForms</span></h3>
+          <p>
+            <code>xulj-host.exe App.exe</code>. Layout is inferred from <code>Dock</code>,
+            <code>Anchor</code> and the designer's positions, and the designer's column alignment
+            is preserved. <code>&amp;Add</code> becomes Alt+A, and menu shortcuts carry over.
+            <code>MessageBox</code>, file dialogs and <code>InputBox</code> are intercepted
+            (via Harmony) and shown in the browser.
+          </p>
+        </article>
+        <article class="card">
+          <h3><a href="https://github.com/xul-j/java-bridge">java-bridge</a> <span class="tag">Java Swing</span></h3>
+          <p>
+            <code>java -jar xulj-swing.jar --jar App.jar</code>. Layout comes from the layout
+            managers, or from real bounds for GridBag, GroupLayout and null layouts. Ids come from
+            the app's own field names. <code>JOptionPane</code> and <code>JFileChooser</code> work
+            in the browser, and <code>System.exit</code> ends only that session.
+          </p>
+        </article>
+      </div>
+      <table class="map">
+        <caption>Dialogs in both bridges</caption>
+        <thead><tr><th>The app calls</th><th>The browser sees</th></tr></thead>
+        <tbody>
+          <tr><td>Message box, confirm, input box</td><td>A modal window with icon, message, the same buttons, Enter for the default and Escape to cancel</td></tr>
+          <tr><td>Open-file dialog</td><td>A file picker. The browser uploads, and the app reads the uploaded copy</td></tr>
+          <tr><td>Save-file dialog</td><td>A file-name prompt. The app writes the file, and the browser downloads it</td></tr>
+          <tr><td>Print, colour, folder…</td><td>Cancelled, with a notification</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="protocol" class="wrap">
+      <h2>The protocol in one table</h2>
+      <p>Operations are validated against a <a href="https://github.com/xul-j/xul-j/blob/main/protocol/schema.json">JSON Schema</a> by producers, and by MQTT viewers since no server sits in between.</p>
+      <table class="map">
+        <thead><tr><th>op</th><th>meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>node</code></td><td>insert an element (with nested children) into <code>in</code>, optionally <code>before</code> a sibling or at an <code>order</code></td></tr>
+          <tr><td><code>replace</code></td><td>swap an element for a new one, typically a <code>pending</code> placeholder for the real widget</td></tr>
+          <tr><td><code>set</code> / <code>remove</code></td><td>change an element's attributes, or remove it</td></tr>
+          <tr><td><code>command</code></td><td>declare or update an intent: label, disabled, keyboard shortcut</td></tr>
+          <tr><td><code>broadcast</code></td><td>set a named value that attributes observe</td></tr>
+          <tr><td><code>rows</code></td><td>append rows to (or clear) a data source bound to trees</td></tr>
+          <tr><td><code>reset</code></td><td>start over</td></tr>
+          <tr><td><code>download</code> / <code>notify</code></td><td>transient: a file to download, a message to show; never replayed</td></tr>
+        </tbody>
+      </table>
+      <p class="small-print">
+        Widgets: window (optionally modal), vbox, hbox, box, spacer, groupbox, toolbar, statusbar,
+        label, description, button, toolbarbutton, textbox, checkbox, menulist, tabbox, tabpanel,
+        deck, tree, progressmeter, filepicker, pending.
+      </p>
+    </section>
+
+    <section id="start" class="wrap">
+      <h2>Run it</h2>
+<pre><code>git clone https://github.com/xul-j/xul-j && cd xul-j
+npm install
+npm start            <span class="c"># http://127.0.0.1:8080: the deploy console over SSE</span>
+npm test             <span class="c"># end-to-end: valid ops, resume, overlays, 100k rows</span>
+npm run tty          <span class="c"># the same stream, rendered in a terminal</span></code></pre>
+      <p>
+        The MQTT setup, and the bridges' Docker builds (Mono + Xvfb, JDK + Xvfb) and test suites,
+        are described in each repository's README.
+      </p>
+    </section>
+
+    <section id="status" class="wrap">
+      <h2>Status</h2>
+      <p>
+        XUL-J is a working prototype with end-to-end tests for every transport and bridge, not a
+        finished product. The bridges have so far been tested on Linux (Mono's WinForms, OpenJDK
+        Swing), not yet on Windows. Menus are flattened into buttons, custom-painted controls don't
+        render, and there is no authentication: put a bridge behind your own access control.
+        Ideas and issues are welcome on GitHub.
+      </p>
+    </section>
+  </main>
+
+  <footer class="bottom">
+    <div class="wrap">
+      <span>XUL-J · MIT licensed ·
+        <a href="https://github.com/xul-j/xul-j">xul-j</a> ·
+        <a href="https://github.com/xul-j/net-bridge">net-bridge</a> ·
+        <a href="https://github.com/xul-j/java-bridge">java-bridge</a></span>
+      <span>Inspired by Mozilla's XUL (XML User Interface Language).</span>
+    </div>
+  </footer>
+</body>
+</html>
