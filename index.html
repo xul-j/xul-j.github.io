@@ -47,7 +47,8 @@
         This runs the real XUL-J renderer. A small script in the page plays the server's part,
         so the operations on the right are exactly what would arrive over the wire. Watch the
         log placeholder fill in, a plugin add a <strong>Rollback</strong> button after the fact,
-        and pick <em>production</em> to get a modal confirmation.
+        pick <em>production</em> to get a modal confirmation, and open the menus (Alt+D): they open and close
+        locally, and only choosing an item is sent.
       </p>
     </section>
 
@@ -241,8 +242,9 @@
       </table>
       <p class="small-print">
         Widgets: window (optionally modal), vbox, hbox, box, spacer, groupbox, toolbar, statusbar,
-        label, description, button, toolbarbutton, textbox, checkbox, menulist, tabbox, tabpanel,
-        deck, tree, progressmeter, filepicker, pending.
+        menubar, menu, menuitem, menuseparator, label, description, button, toolbarbutton, textbox,
+        checkbox, menulist, tabbox, tabpanel, deck, tree, progressmeter, filepicker, pending. Menus open
+        and close in the browser; only choosing an item is sent back.
       </p>
     </section>
 
@@ -264,7 +266,7 @@ npm run tty          <span class="c"># the same stream, rendered in a terminal</
       <p>
         XUL-J is a working prototype with end-to-end tests for every transport and bridge, not a
         finished product. The bridges have so far been tested on Linux (Mono's WinForms, OpenJDK
-        Swing), not yet on Windows. Menus are flattened into buttons, custom-painted controls don't
+        Swing), not yet on Windows. Context menus and grid selection aren't mapped yet, custom-painted controls don't
         render, and there is no authentication: put a bridge behind your own access control.
         Ideas and issues are welcome on GitHub.
       </p>

@@ -114,6 +114,35 @@ progress.x-progressmeter { width: 140px; accent-color: var(--accent); }
 @keyframes shimmer { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .x-pending { animation: none; } }
 
+/* ---- menus ---------------------------------------------------------------- */
+.x-menubar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 2px 4px; background: var(--chrome); border-bottom: 1px solid var(--border); }
+.x-menu { position: relative; display: flex; }
+.x-menu-button { font: inherit; color: var(--text); background: none; border: 0; border-radius: 4px; padding: 4px 10px; cursor: default; display: flex; align-items: center; gap: 6px; }
+.x-menubar > .x-menu > .x-menu-button:hover, .x-menubar > .x-menu.x-open > .x-menu-button,
+.x-toolbar > .x-menu.x-open > .x-menu-button { background: var(--surface); }
+.x-toolbar > .x-menu > .x-menu-button { border: 1px solid var(--border); background: var(--surface); min-height: 28px; }
+.x-toolbar > .x-menu > .x-menu-button::after { content: "▾"; color: var(--muted); }
+.x-menu-button:disabled { opacity: .45; }
+.x-menupopup {
+  position: fixed; z-index: 30; min-width: 190px; max-height: calc(100vh - 8px); overflow-y: auto;
+  display: flex; flex-direction: column; padding: 4px; gap: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+}
+.x-menupopup > .x-menuitem, .x-menupopup > .x-menu > .x-menu-button {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; white-space: nowrap;
+  font: inherit; color: var(--text); background: none; border: 0; border-radius: 4px; padding: 5px 10px 5px 6px; cursor: default;
+}
+.x-menupopup > .x-menu > .x-menu-button::after { content: "▸"; margin-left: auto; padding-left: 16px; color: var(--muted); }
+.x-menupopup > .x-menuitem:not(:disabled):hover, .x-menupopup > .x-menuitem:focus-visible,
+.x-menupopup > .x-menu > .x-menu-button:not(:disabled):hover, .x-menupopup > .x-menu > .x-menu-button:focus-visible,
+.x-menupopup > .x-menu.x-open > .x-menu-button { background: var(--accent); color: var(--accent-text); outline: none; }
+.x-menupopup > .x-menuitem:disabled { opacity: .45; }
+.x-menu-check { width: 14px; flex: none; text-align: center; }
+.x-menu-label { flex: 1; }
+.x-menu-accel { color: var(--muted); font-size: 12px; padding-left: 24px; }
+.x-menuitem:hover .x-menu-accel, .x-menuitem:focus-visible .x-menu-accel { color: inherit; }
+.x-menuseparator { height: 1px; background: var(--border); margin: 4px 2px; flex: none; }
+
 /* ---- modal windows ------------------------------------------------------ */
 .x-root.x-has-modal::before {
   content: ""; position: fixed; inset: 0; z-index: 9; background: rgba(20, 20, 18, .35);

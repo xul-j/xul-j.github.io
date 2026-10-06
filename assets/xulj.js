@@ -14,6 +14,11 @@ class XulJ {
     this.options = options;
     this.reset();
     document.addEventListener('keydown', (e) => this.onKey(e));
+    // Menus open and close locally; only choosing an item reaches the server.
+    document.addEventListener('pointerdown', (e) => {
+      if (!(e.target instanceof Element) || !e.target.closest('.x-menu')) this.closeMenus();
+    });
+    window.addEventListener('resize', () => this.closeMenus());
   }
 
   reset() {
@@ -253,6 +258,46 @@ class XulJ {
         d.setAttribute('aria-busy', 'true');
         return d;
       }
+      case 'menubar': {
+        const d = el('div');
+        d.setAttribute('role', 'menubar');
+        d.addEventListener('keydown', (e) => this.menubarKey(e));
+        return d;
+      }
+      case 'menu': {
+        const d = el('div');
+        n.button = el('button', 'x-menu-button');
+        n.button.type = 'button';
+        n.button.setAttribute('aria-haspopup', 'menu');
+        n.button.setAttribute('aria-expanded', 'false');
+        n.labelEl = el('span', 'x-menu-label');
+        n.button.append(n.labelEl);
+        n.body = el('div', 'x-menupopup');
+        n.body.setAttribute('role', 'menu');
+        n.body.hidden = true;
+        d.append(n.button, n.body);
+        n.button.addEventListener('click', () => (n.el.classList.contains('x-open') && !this.isSubmenu(n) ? this.closeMenus() : this.openMenu(n, this.isSubmenu(n) ? 'first' : null)));
+        n.button.addEventListener('pointerenter', () => this.hoverMenu(n));
+        n.body.addEventListener('keydown', (e) => this.menuKey(e, n));
+        return d;
+      }
+      case 'menuitem': {
+        const b = el('button');
+        b.type = 'button';
+        b.setAttribute('role', 'menuitem');
+        n.check = el('span', 'x-menu-check');
+        n.labelEl = el('span', 'x-menu-label');
+        n.accel = el('span', 'x-menu-accel');
+        b.append(n.check, n.labelEl, n.accel);
+        b.addEventListener('click', () => { this.closeMenus(); this.fire(n.attrs.command); });
+        b.addEventListener('pointerenter', () => this.closeSubmenusIn(b.parentElement));
+        return b;
+      }
+      case 'menuseparator': {
+        const d = el('div');
+        d.setAttribute('role', 'separator');
+        return d;
+      }
       case 'filepicker': {
         const d = el('div');
         n.input = el('input');
@@ -326,6 +371,23 @@ class XulJ {
         if (a.modal) { el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', a.label || ''); }
         this.syncModal();
         break;
+      case 'menu':
+        n.labelEl.textContent = a.label || '';
+        n.button.disabled = Boolean(a.disabled);
+        if (a.accesskey) n.button.setAttribute('aria-keyshortcuts', XulJ.keyLabel(a.accesskey));
+        break;
+      case 'menuitem': {
+        n.labelEl.textContent = a.label ?? '';
+        el.disabled = Boolean(a.disabled);
+        const checkable = typeof a.checked === 'boolean';
+        el.setAttribute('role', checkable ? 'menuitemcheckbox' : 'menuitem');
+        if (checkable) el.setAttribute('aria-checked', String(a.checked));
+        else el.removeAttribute('aria-checked');
+        n.check.textContent = a.checked ? '✓' : '';
+        const cmd = a.command && this.commands.get(a.command);
+        n.accel.textContent = cmd && cmd.key ? XulJ.keyLabel(cmd.key) : '';
+        break;
+      }
       case 'filepicker':
         if (a.accept) n.input.accept = a.accept;
         n.input.multiple = Boolean(a.multiple);
@@ -438,6 +500,141 @@ class XulJ {
     a.remove();
   }
 
+  // ---- menus ---------------------------------------------------------------
+
+  isSubmenu(n) { return Boolean(n.el.parentElement && n.el.parentElement.classList.contains('x-menupopup')); }
+
+  menuOf(el) { return el && this.nodes.get(el.dataset.xid); }
+
+  openMenu(n, focus) {
+    if (this.isSubmenu(n)) this.closeSubmenusIn(n.el.parentElement, n);
+    else this.closeMenus(n);
+    n.el.classList.add('x-open');
+    n.body.hidden = false;
+    n.button.setAttribute('aria-expanded', 'true');
+    this.placePopup(n);
+    if (focus) {
+      const items = this.menuItems(n.body);
+      const target = focus === 'last' ? items[items.length - 1] : items[0];
+      if (target) target.focus();
+    }
+  }
+
+  closeMenu(n) {
+    this.closeSubmenusIn(n.body);
+    n.el.classList.remove('x-open');
+    n.body.hidden = true;
+    n.button.setAttribute('aria-expanded', 'false');
+  }
+
+  closeMenus(except) {
+    for (const el of this.rootEl.querySelectorAll('.x-menu.x-open')) {
+      const n = this.menuOf(el);
+      if (n && n !== except && !(except && n.el.contains(except.el))) this.closeMenu(n);
+    }
+  }
+
+  closeSubmenusIn(popup, except) {
+    if (!popup) return;
+    for (const el of popup.querySelectorAll(':scope > .x-menu.x-open')) {
+      const n = this.menuOf(el);
+      if (n && n !== except) this.closeMenu(n);
+    }
+  }
+
+  // Moving across a menubar while one menu is open switches menus; submenus open on hover.
+  hoverMenu(n) {
+    if (n.button.disabled) return;
+    if (this.isSubmenu(n)) return this.openMenu(n);
+    const open = [...n.el.parentElement.children].some((c) => c !== n.el && c.classList.contains('x-open'));
+    if (open) this.openMenu(n);
+  }
+
+  placePopup(n) {
+    const p = n.body;
+    const r = n.button.getBoundingClientRect();
+    const sub = this.isSubmenu(n);
+    p.style.left = `${sub ? r.right : r.left}px`;
+    p.style.top = `${sub ? r.top - 4 : r.bottom}px`;
+    const pr = p.getBoundingClientRect();
+    if (pr.right > window.innerWidth - 4) p.style.left = `${Math.max(4, sub ? r.left - pr.width : window.innerWidth - pr.width - 4)}px`;
+    if (pr.bottom > window.innerHeight - 4) p.style.top = `${Math.max(4, window.innerHeight - pr.height - 4)}px`;
+  }
+
+  menuItems(popup) {
+    return [...popup.children]
+      .filter((c) => !c.hidden)
+      .map((c) => (c.classList.contains('x-menu') ? c.querySelector(':scope > .x-menu-button') : c))
+      .filter((b) => b && b.tagName === 'BUTTON' && !b.disabled);
+  }
+
+  topMenus(n) {
+    const bar = n.el.parentElement;
+    return [...bar.children].filter((c) => c.classList.contains('x-menu') && !c.hidden).map((c) => this.menuOf(c))
+      .filter((m) => m && !m.button.disabled);
+  }
+
+  moveTop(n, dir) {
+    let top = n;
+    while (top && this.isSubmenu(top)) top = this.menuOf(top.el.parentElement.closest('.x-menu'));
+    if (!top) return;
+    const menus = this.topMenus(top);
+    const next = menus[(menus.indexOf(top) + dir + menus.length) % menus.length];
+    if (next) this.openMenu(next, 'first');
+  }
+
+  menuKey(e, n) {
+    const items = this.menuItems(n.body);
+    const i = items.indexOf(document.activeElement);
+    const owner = document.activeElement && document.activeElement.classList.contains('x-menu-button')
+      ? this.menuOf(document.activeElement.parentElement) : null;
+    let handled = true;
+    switch (e.key) {
+      case 'ArrowDown': (items[(i + 1) % items.length] || items[0]).focus(); break;
+      case 'ArrowUp': (items[(i - 1 + items.length) % items.length] || items[items.length - 1]).focus(); break;
+      case 'Home': items[0] && items[0].focus(); break;
+      case 'End': items[items.length - 1] && items[items.length - 1].focus(); break;
+      case 'ArrowRight':
+        if (owner && owner !== n) this.openMenu(owner, 'first');
+        else this.moveTop(n, 1);
+        break;
+      case 'ArrowLeft':
+        if (this.isSubmenu(n)) { this.closeMenu(n); n.button.focus(); } else this.moveTop(n, -1);
+        break;
+      case 'Escape':
+        this.closeMenu(n);
+        n.button.focus();
+        break;
+      case 'Tab': this.closeMenus(); handled = false; break;
+      default: handled = false;
+    }
+    if (handled) e.preventDefault();
+    e.stopPropagation(); // nested popups bubble through their parents; handle once
+  }
+
+  menubarKey(e) {
+    const btn = document.activeElement;
+    if (!btn || !btn.classList.contains('x-menu-button')) return;
+    const n = this.menuOf(btn.parentElement);
+    if (!n || this.isSubmenu(n)) return;
+    const menus = this.topMenus(n);
+    const i = menus.indexOf(n);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      const next = menus[(i + (e.key === 'ArrowRight' ? 1 : -1) + menus.length) % menus.length];
+      if (n.el.classList.contains('x-open')) this.openMenu(next, 'first');
+      else next.button.focus();
+      e.preventDefault();
+    } else if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+      this.openMenu(n, 'first');
+      e.preventDefault();
+    }
+  }
+
+  static keyLabel(key) {
+    const names = { ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', meta: 'Meta', escape: 'Esc', enter: 'Enter', delete: 'Del' };
+    return key.split('+').map((k) => names[k] || (k.length === 1 ? k.toUpperCase() : k[0].toUpperCase() + k.slice(1))).join('+');
+  }
+
   // ---- tabbox ------------------------------------------------------------
 
   syncTabs(box) {
@@ -496,8 +693,19 @@ class XulJ {
   }
 
   onKey(e) {
+    if (e.key === 'Escape' && this.rootEl.querySelector('.x-menu.x-open')) {
+      this.closeMenus();
+      return e.preventDefault();
+    }
     const combo = [e.ctrlKey && 'ctrl', e.altKey && 'alt', e.shiftKey && 'shift', e.metaKey && 'meta', e.key.toLowerCase()]
       .filter(Boolean).join('+');
+    // Access keys open top-level menus (Alt+F → File), unless a modal window blocks them.
+    for (const n of this.nodes.values()) {
+      if (n.tag !== 'menu' || n.attrs.accesskey !== combo || this.isSubmenu(n) || n.button.disabled) continue;
+      if (n.el.closest('[inert]') || !n.el.isConnected || n.el.closest('[hidden]')) continue;
+      e.preventDefault();
+      return this.openMenu(n, 'first');
+    }
     for (const [id, cmd] of this.commands) {
       if (cmd.key === combo && !cmd.disabled) {
         e.preventDefault();

@@ -66,7 +66,11 @@
         "tree",
         "progressmeter",
         "pending",
-        "filepicker"
+        "filepicker",
+        "menubar",
+        "menu",
+        "menuitem",
+        "menuseparator"
       ]
     },
     "element": {
@@ -225,6 +229,15 @@
         "multiline": {
           "type": "boolean",
           "description": "textbox: several lines (fixed when the element is created)"
+        },
+        "checked": {
+          "type": "boolean",
+          "description": "menuitem: a check or radio item; absent for plain items"
+        },
+        "accesskey": {
+          "type": "string",
+          "pattern": "^((ctrl|alt|shift|meta)\\+)*[a-z0-9]+$",
+          "description": "menu: key that opens it, e.g. alt+f"
         }
       }
     },

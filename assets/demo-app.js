@@ -94,6 +94,25 @@
     emit({ op: 'command', id: 'cmd_no', deleted: true });
   }
 
+  function setEnv(env) {
+    st.env = env;
+    emit({ op: 'broadcast', id: 'is_staging', value: env === 'staging' });
+    emit({ op: 'broadcast', id: 'is_production', value: env === 'production' });
+    emit({ op: 'set', id: 'env', attrs: { selectedIndex: env === 'production' ? 1 : 0 } });
+    emit({ op: 'set', id: 'win', attrs: { label: `Deploy console — ${st.env}` } });
+  }
+
+  function about() {
+    emit({ op: 'command', id: 'cmd_about_ok', label: 'OK', key: 'escape' });
+    emit({
+      op: 'node', in: 'root', tag: 'window', id: 'about', label: 'About', modal: true, icon: 'info',
+      children: [
+        { tag: 'description', value: 'A deploy console made of streamed XUL-J operations.\nThe menus open locally; only choosing an item is sent.' },
+        { tag: 'hbox', children: [{ tag: 'spacer', flex: 1 }, { tag: 'button', command: 'cmd_about_ok', class: 'primary' }] },
+      ],
+    });
+  }
+
   function handle(m) {
     const gen = generation;
     if (m.op === 'do') {
@@ -102,11 +121,12 @@
       if (m.command === 'cmd_no') { closeConfirm(); emit({ op: 'broadcast', id: 'status', value: 'Deploy cancelled' }); }
       if (m.command === 'cmd_cancel' && st.running) st.running.cancelled = true;
       if (m.command === 'cmd_rollback') logRow('warn', `Rollback of ${st.env} requested (demo: nothing happens)`);
+      if (m.command.startsWith('cmd_env_')) setEnv(m.command.slice(8));
+      if (m.command === 'cmd_clear') { st.rows = []; emit({ op: 'rows', source: 'log', clear: true }); emit({ op: 'broadcast', id: 'status', value: 'Log cleared' }); }
+      if (m.command === 'cmd_about') about();
+      if (m.command === 'cmd_about_ok') { emit({ op: 'remove', id: 'about' }); emit({ op: 'command', id: 'cmd_about_ok', deleted: true }); }
     } else if (m.op === 'input') {
-      if (m.id === 'env') {
-        st.env = m.value;
-        emit({ op: 'set', id: 'win', attrs: { label: `Deploy console — ${st.env}` } });
-      }
+      if (m.id === 'env') setEnv(m.value);
       if (m.id === 'filter') {
         st.filter = String(m.value);
         emit({ op: 'rows', source: 'log', clear: true, append: st.rows.filter(visible) });
@@ -131,7 +151,32 @@
     emit({ op: 'broadcast', id: 'busy', value: false });
     emit({ op: 'broadcast', id: 'status', value: 'Idle' });
     emit({ op: 'broadcast', id: 'progress', value: 0 });
+    emit({ op: 'command', id: 'cmd_env_staging', label: 'Staging' });
+    emit({ op: 'command', id: 'cmd_env_production', label: 'Production' });
+    emit({ op: 'command', id: 'cmd_clear', label: 'Clear log', key: 'ctrl+l' });
+    emit({ op: 'command', id: 'cmd_about', label: 'About' });
+    emit({ op: 'broadcast', id: 'is_staging', value: true });
+    emit({ op: 'broadcast', id: 'is_production', value: false });
     emit({ op: 'node', in: 'root', tag: 'window', id: 'win', label: 'Deploy console' });
+    emit({
+      op: 'node', in: 'win', tag: 'menubar', id: 'mb', children: [
+        { tag: 'menu', id: 'm_deploy', label: 'Deploy', accesskey: 'alt+d', children: [
+          { tag: 'menuitem', id: 'mi_deploy', command: 'cmd_deploy' },
+          { tag: 'menuitem', id: 'mi_cancel', command: 'cmd_cancel' },
+          { tag: 'menuseparator', id: 'ms1' },
+          { tag: 'menu', id: 'm_env', label: 'Environment', children: [
+            { tag: 'menuitem', id: 'mi_staging', command: 'cmd_env_staging', observes: { checked: 'is_staging', disabled: 'busy' } },
+            { tag: 'menuitem', id: 'mi_production', command: 'cmd_env_production', observes: { checked: 'is_production', disabled: 'busy' } },
+          ] },
+        ] },
+        { tag: 'menu', id: 'm_log', label: 'Log', accesskey: 'alt+l', children: [
+          { tag: 'menuitem', id: 'mi_clear', command: 'cmd_clear' },
+        ] },
+        { tag: 'menu', id: 'm_help', label: 'Help', accesskey: 'alt+h', children: [
+          { tag: 'menuitem', id: 'mi_about', command: 'cmd_about' },
+        ] },
+      ],
+    });
     if (!await step(250)) return;
     emit({
       op: 'node', in: 'win', tag: 'toolbar', id: 'tb', children: [
