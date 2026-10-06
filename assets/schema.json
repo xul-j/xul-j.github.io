@@ -32,6 +32,9 @@
     },
     {
       "$ref": "#/$defs/notify"
+    },
+    {
+      "$ref": "#/$defs/theme"
     }
   ],
   "$defs": {
@@ -70,7 +73,8 @@
         "menubar",
         "menu",
         "menuitem",
-        "menuseparator"
+        "menuseparator",
+        "menupopup"
       ]
     },
     "element": {
@@ -111,7 +115,9 @@
             "primary",
             "danger",
             "muted",
-            "mono"
+            "mono",
+            "warning",
+            "success"
           ]
         },
         "disabled": {
@@ -238,6 +244,26 @@
           "type": "string",
           "pattern": "^((ctrl|alt|shift|meta)\\+)*[a-z0-9]+$",
           "description": "menu: key that opens it, e.g. alt+f"
+        },
+        "seltype": {
+          "enum": [
+            "none",
+            "single",
+            "multiple"
+          ],
+          "description": "tree: whether and how rows can be selected"
+        },
+        "selection": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": "tree: selected row indices (the producer's truth)"
+        },
+        "contextmenu": {
+          "$ref": "#/$defs/id",
+          "description": "id of a menupopup opened by right-click, Shift+F10 or the Menu key"
         }
       }
     },
@@ -476,6 +502,92 @@
             "warning",
             "error"
           ]
+        }
+      }
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accent": {
+          "$ref": "#/$defs/color"
+        },
+        "accentText": {
+          "$ref": "#/$defs/color"
+        },
+        "surface": {
+          "$ref": "#/$defs/color"
+        },
+        "background": {
+          "$ref": "#/$defs/color"
+        },
+        "chrome": {
+          "$ref": "#/$defs/color"
+        },
+        "text": {
+          "$ref": "#/$defs/color"
+        },
+        "muted": {
+          "$ref": "#/$defs/color"
+        },
+        "border": {
+          "$ref": "#/$defs/color"
+        },
+        "danger": {
+          "$ref": "#/$defs/color"
+        },
+        "warning": {
+          "$ref": "#/$defs/color"
+        },
+        "success": {
+          "$ref": "#/$defs/color"
+        },
+        "radius": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "density": {
+          "enum": [
+            "compact",
+            "normal",
+            "comfortable"
+          ]
+        },
+        "font": {
+          "enum": [
+            "system",
+            "serif",
+            "mono",
+            "rounded",
+            "classic"
+          ]
+        }
+      }
+    },
+    "theme": {
+      "description": "Design tokens for the interface. Never CSS. The viewer's dark mode, contrast settings and WCAG contrast checks take precedence.",
+      "type": "object",
+      "required": [
+        "op",
+        "tokens"
+      ],
+      "properties": {
+        "op": {
+          "const": "theme"
+        },
+        "seq": {
+          "$ref": "#/$defs/seq"
+        },
+        "tokens": {
+          "$ref": "#/$defs/tokens"
+        },
+        "dark": {
+          "$ref": "#/$defs/tokens"
         }
       }
     }

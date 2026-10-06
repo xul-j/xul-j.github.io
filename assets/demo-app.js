@@ -10,7 +10,13 @@
   const count = document.getElementById('wire-count');
 
   let ui, seq, ops, generation = 0;
-  const st = { env: 'staging', filter: '', rows: [], running: null };
+  const THEMES = {
+    default: { tokens: {} },
+    classic: { tokens: { background: '#c0c0c0', chrome: '#c0c0c0', surface: '#ffffff', text: '#000000', muted: '#404040', border: '#808080', accent: '#000080', accentText: '#ffffff', radius: 0, density: 'compact', font: 'classic' } },
+    terminal: { tokens: { background: '#0b0f0b', chrome: '#101810', surface: '#0f150f', text: '#4dff7a', muted: '#2fbf5a', border: '#1f4d2a', accent: '#4dff7a', accentText: '#002a0c', danger: '#ff6b6b', warning: '#ffd166', radius: 0, density: 'compact', font: 'mono' } },
+  };
+  THEMES.terminal.dark = THEMES.terminal.tokens;
+  const st = { env: 'staging', filter: '', rows: [], shown: [], selection: [], running: null };
 
   function log(dir, msg) {
     if (pause.checked || wire.hidden) return;
@@ -41,7 +47,18 @@
   function logRow(level, msg) {
     const row = { t: now(), level, msg };
     st.rows.push(row);
-    if (visible(row)) emit({ op: 'rows', source: 'log', append: [row] });
+    if (visible(row)) { st.shown.push(row); emit({ op: 'rows', source: 'log', append: [row] }); }
+  }
+
+  function setSelection(rows) {
+    st.selection = rows.filter((r) => r < st.shown.length);
+    emit({ op: 'set', id: 'log', attrs: { selection: st.selection } });
+    emit({ op: 'command', id: 'cmd_details', disabled: !st.selection.length });
+  }
+
+  function setTheme(name) {
+    for (const k of Object.keys(THEMES)) emit({ op: 'broadcast', id: `theme_${k}`, value: k === name });
+    emit({ op: 'theme', ...THEMES[name] });
   }
 
   function busy(on) {
@@ -124,13 +141,25 @@
       if (m.command.startsWith('cmd_env_')) setEnv(m.command.slice(8));
       if (m.command === 'cmd_clear') { st.rows = []; emit({ op: 'rows', source: 'log', clear: true }); emit({ op: 'broadcast', id: 'status', value: 'Log cleared' }); }
       if (m.command === 'cmd_about') about();
+      if (m.command.startsWith('cmd_theme_')) setTheme(m.command.slice(10));
+      if (m.command === 'cmd_details') {
+        const lines = st.selection.map((i) => st.shown[i]).filter(Boolean).map((r) => `${r.t} ${r.level.toUpperCase()} ${r.msg}`);
+        if (lines.length) emit({ op: 'notify', message: lines.join(' · ') });
+      }
       if (m.command === 'cmd_about_ok') { emit({ op: 'remove', id: 'about' }); emit({ op: 'command', id: 'cmd_about_ok', deleted: true }); }
     } else if (m.op === 'input') {
       if (m.id === 'env') setEnv(m.value);
       if (m.id === 'filter') {
         st.filter = String(m.value);
-        emit({ op: 'rows', source: 'log', clear: true, append: st.rows.filter(visible) });
+        st.shown = st.rows.filter(visible);
+        emit({ op: 'rows', source: 'log', clear: true, append: st.shown });
+        setSelection([]);
       }
+    } else if (m.op === 'select' && m.id === 'log') {
+      setSelection(m.rows);
+    } else if (m.op === 'activate' && m.id === 'log') {
+      const r = st.shown[m.row];
+      if (r) emit({ op: 'notify', message: `${r.t} ${r.level.toUpperCase()} ${r.msg}` });
     }
   }
 
@@ -141,6 +170,8 @@
     st.env = 'staging';
     st.filter = '';
     st.rows = [];
+    st.shown = [];
+    st.selection = [];
     st.running = null;
     wireLog.replaceChildren();
     const step = async (ms) => { await sleep(ms); return gen === generation; };
@@ -155,6 +186,12 @@
     emit({ op: 'command', id: 'cmd_env_production', label: 'Production' });
     emit({ op: 'command', id: 'cmd_clear', label: 'Clear log', key: 'ctrl+l' });
     emit({ op: 'command', id: 'cmd_about', label: 'About' });
+    emit({ op: 'command', id: 'cmd_details', label: 'Show details', disabled: true });
+    for (const k of Object.keys(THEMES)) {
+      emit({ op: 'command', id: `cmd_theme_${k}`, label: k[0].toUpperCase() + k.slice(1) });
+      emit({ op: 'broadcast', id: `theme_${k}`, value: k === 'default' });
+    }
+    emit({ op: 'theme', tokens: {} });
     emit({ op: 'broadcast', id: 'is_staging', value: true });
     emit({ op: 'broadcast', id: 'is_production', value: false });
     emit({ op: 'node', in: 'root', tag: 'window', id: 'win', label: 'Deploy console' });
@@ -171,6 +208,9 @@
         ] },
         { tag: 'menu', id: 'm_log', label: 'Log', accesskey: 'alt+l', children: [
           { tag: 'menuitem', id: 'mi_clear', command: 'cmd_clear' },
+        ] },
+        { tag: 'menu', id: 'm_view', label: 'View', accesskey: 'alt+v', children: [
+          { tag: 'menu', id: 'm_theme', label: 'Theme', children: Object.keys(THEMES).map((k) => ({ tag: 'menuitem', id: `mi_theme_${k}`, command: `cmd_theme_${k}`, observes: { checked: `theme_${k}` } })) },
         ] },
         { tag: 'menu', id: 'm_help', label: 'Help', accesskey: 'alt+h', children: [
           { tag: 'menuitem', id: 'mi_about', command: 'cmd_about' },
@@ -202,11 +242,16 @@
     // The log tree arrives late; the placeholder has been holding its space.
     if (!await step(900)) return;
     emit({
-      op: 'replace', id: 'log', tag: 'tree', flex: 1, class: 'mono',
+      op: 'replace', id: 'log', tag: 'tree', flex: 1, class: 'mono', seltype: 'multiple', selection: [], contextmenu: 'log_menu',
       cols: [{ id: 't', label: 'Time', width: 80 }, { id: 'level', label: 'Level', width: 64 }, { id: 'msg', label: 'Message', flex: 1 }],
       rows: { source: 'log' },
     });
-    logRow('info', 'Ready. Press Deploy (Ctrl+Enter); pick production for a confirmation dialog.');
+    emit({ op: 'node', in: 'win', tag: 'menupopup', id: 'log_menu', children: [
+      { tag: 'menuitem', id: 'cm_details', command: 'cmd_details' },
+      { tag: 'menuseparator', id: 'cm_sep' },
+      { tag: 'menuitem', id: 'cm_clear', command: 'cmd_clear' },
+    ] });
+    logRow('info', 'Ready. Press Deploy (Ctrl+Enter); try View › Theme, and right-click a log line.');
     // A "plugin" overlays a button into the toolbar, anchored by id, after the fact.
     if (!await step(1400)) return;
     emit({ op: 'command', id: 'cmd_rollback', label: 'Rollback' });

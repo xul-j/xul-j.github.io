@@ -15,6 +15,7 @@
         <a href="generate.html">Generator</a>
         <a href="#how">How it works</a>
         <a href="#transports">Transports</a>
+        <a href="#agents">Agents</a>
         <a href="net-bridge/">net-bridge</a>
         <a href="java-bridge/">java-bridge</a>
         <a href="#protocol">Protocol</a>
@@ -48,8 +49,8 @@
         This runs the real XUL-J renderer. A small script in the page plays the server's part,
         so the operations on the right are exactly what would arrive over the wire. Watch the
         log placeholder fill in, a plugin add a <strong>Rollback</strong> button after the fact,
-        pick <em>production</em> to get a modal confirmation, and open the menus (Alt+D): they open and close
-        locally, and only choosing an item is sent.
+        pick <em>production</em> to get a modal confirmation, switch <em>View › Theme</em>, and right-click
+        log lines (Ctrl/Shift-click selects several). Menus open locally; only choices are sent.
       </p>
     </section>
 
@@ -81,6 +82,37 @@
             server in between. The generated interface is data, never code: the renderer runs
             nothing it receives.
           </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="agents" class="wrap">
+      <h2>AI agents, without screenshots</h2>
+      <div class="cols">
+        <div>
+          <p>
+            An interface streamed as XUL-J is already what an agent needs: a labelled tree with
+            explicit commands, enabled and disabled state, tables and dialogs. The
+            <a href="https://github.com/xul-j/xul-j#mcp-let-ai-agents-operate-any-xul-j-interface">XUL-J MCP server</a>
+            hands that tree to any MCP client. Put it in front of a bridge, and a 2005 WinForms or Swing
+            app becomes something an agent can operate reliably: no screen scraping, no clicking at
+            coordinates.
+          </p>
+<pre><code>claude mcp add legacy-orders -- \
+  node xul-j/mcp/server.js --url http://127.0.0.1:8092</code></pre>
+        </div>
+        <div>
+<pre><code><span class="c">// do_command cmd_addButton</span>
++ label "Customer is required." [errorLabel] (danger)
+~ label "Order not added" [statusLabel]
+
+<span class="c">// open_context_menu ordersGrid</span>
+item "Duplicate order" [duplicateItem] → cmd_duplicateItem
+item "Delete order…" [deleteSelectedItem] → cmd_deleteSelectedItem
+
+<span class="c">// do_command cmd_exportItem, then Save</span>
+~ label "Exported 1 orders to agent-export.csv" [statusLabel]
+~ enabled again: file, edit, help and 14 more</code></pre>
         </div>
       </div>
     </section>
@@ -118,6 +150,8 @@
             <dd>Named values that attributes observe: <code>observes: {"disabled": "busy"}</code>.</dd>
             <dt>Boxes and flex</dt>
             <dd>A half-arrived layout still looks reasonable, and a <code>pending</code> placeholder holds space until its widget arrives.</dd>
+            <dt>Themes as tokens</dt>
+            <dd>A producer can send colours, radius, density and font, never CSS. The viewer's dark mode, contrast settings and WCAG checks win.</dd>
             <dt>Data apart from structure</dt>
             <dd>A tree is declared once and rows stream into it. 100,000 rows render as about 30 DOM nodes.</dd>
           </dl>
@@ -239,6 +273,7 @@
           <tr><td><code>command</code></td><td>declare or update an intent: label, disabled, keyboard shortcut</td></tr>
           <tr><td><code>broadcast</code></td><td>set a named value that attributes observe</td></tr>
           <tr><td><code>rows</code></td><td>append rows to (or clear) a data source bound to trees</td></tr>
+          <tr><td><code>theme</code></td><td>design tokens (colours, radius, density, font), with an optional dark palette</td></tr>
           <tr><td><code>reset</code></td><td>start over</td></tr>
           <tr><td><code>download</code> / <code>notify</code></td><td>transient: a file to download, a message to show; never replayed</td></tr>
         </tbody>
@@ -269,7 +304,7 @@ npm run tty          <span class="c"># the same stream, rendered in a terminal</
       <p>
         XUL-J is a working prototype with end-to-end tests for every transport and bridge, not a
         finished product. The bridges have so far been tested on Linux (Mono's WinForms, OpenJDK
-        Swing), not yet on Windows. Context menus and grid selection aren't mapped yet, custom-painted controls don't
+        Swing), not yet on Windows. Cell editing isn't mapped yet, custom-painted controls don't
         render, and there is no authentication: put a bridge behind your own access control.
         Ideas and issues are welcome on GitHub.
       </p>

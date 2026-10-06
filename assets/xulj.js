@@ -2,7 +2,6 @@
 // Semantics mirror protocol/model.js (the headless client).
 'use strict';
 
-const ROW_H = 22;
 const STRUCT = new Set(['op', 'seq', 'in', 'before', 'children', 'tag', 'id']);
 
 class XulJ {
@@ -12,13 +11,21 @@ class XulJ {
     this.rootEl = rootEl;
     this.send = send;
     this.options = options;
+    this.rowH = 22;
+    this.theme = null;
     this.reset();
     document.addEventListener('keydown', (e) => this.onKey(e));
     // Menus open and close locally; only choosing an item reaches the server.
     document.addEventListener('pointerdown', (e) => {
-      if (!(e.target instanceof Element) || !e.target.closest('.x-menu')) this.closeMenus();
+      if (!(e.target instanceof Element) || !e.target.closest('.x-menu, .x-menupopup')) this.closeMenus();
     });
+    document.addEventListener('contextmenu', (e) => this.onContextMenu(e));
     window.addEventListener('resize', () => this.closeMenus());
+    // The viewer's preferences beat the producer's theme, so re-apply when they change.
+    for (const q of ['(prefers-color-scheme: dark)', '(prefers-contrast: more)', '(forced-colors: active)']) {
+      const mq = window.matchMedia && window.matchMedia(q);
+      if (mq && mq.addEventListener) mq.addEventListener('change', () => this.applyTheme());
+    }
   }
 
   reset() {
@@ -35,6 +42,9 @@ class XulJ {
     if (op.seq) this.lastSeq = op.seq;
     switch (op.op) {
       case 'reset': return this.reset();
+      case 'theme':
+        this.theme = op;
+        return this.applyTheme();
       case 'download': return (this.options.download || XulJ.download)(op);
       case 'notify': return this.notify(op);
       case 'node':
@@ -249,6 +259,14 @@ class XulJ {
         n.viewport.append(n.sizer);
         n.viewport.addEventListener('scroll', () => this.paintTree(n, false));
         d.append(n.head, n.viewport);
+        n.sel = new Set();
+        n.cursor = -1;
+        n.sizer.addEventListener('click', (e) => this.rowClick(n, e));
+        n.sizer.addEventListener('dblclick', (e) => {
+          const i = this.rowIndex(e);
+          if (i >= 0 && this.resolved(n).seltype !== 'none') this.send({ op: 'activate', id: n.id, row: i });
+        });
+        d.addEventListener('keydown', (e) => this.treeKey(n, e));
         this.source(n.attrs.rows.source).trees.add(n);
         new ResizeObserver(() => this.paintTree(n, false)).observe(n.viewport);
         return d;
@@ -292,6 +310,15 @@ class XulJ {
         b.addEventListener('click', () => { this.closeMenus(); this.fire(n.attrs.command); });
         b.addEventListener('pointerenter', () => this.closeSubmenusIn(b.parentElement));
         return b;
+      }
+      case 'menupopup': {
+        // A context menu: not shown in place; opened at the pointer by elements naming it in `contextmenu`.
+        const d = el('div');
+        d.setAttribute('role', 'menu');
+        d.hidden = true;
+        n.body = d;
+        d.addEventListener('keydown', (e) => this.menuKey(e, n));
+        return d;
       }
       case 'menuseparator': {
         const d = el('div');
@@ -360,6 +387,8 @@ class XulJ {
     el.classList.toggle('x-danger', a.class === 'danger');
     el.classList.toggle('x-muted', a.class === 'muted');
     el.classList.toggle('x-mono', a.class === 'mono');
+    el.classList.toggle('x-warning', a.class === 'warning');
+    el.classList.toggle('x-success', a.class === 'success');
     if (a.title) el.title = a.title;
 
     switch (n.tag) {
@@ -439,6 +468,14 @@ class XulJ {
       }
       case 'tree':
         if (n.viewport) setTimeout(() => this.paintTree(n, false), 0); // columns changed
+        n.sel = new Set(Array.isArray(a.selection) ? a.selection : []);
+        if (a.seltype && a.seltype !== 'none') {
+          el.tabIndex = 0;
+          el.setAttribute('aria-multiselectable', String(a.seltype === 'multiple'));
+        } else {
+          el.removeAttribute('tabindex');
+          el.removeAttribute('aria-multiselectable');
+        }
         n.head.replaceChildren(...a.cols.map((c) => {
           const h = document.createElement('div');
           h.className = 'x-cell';
@@ -524,11 +561,12 @@ class XulJ {
     this.closeSubmenusIn(n.body);
     n.el.classList.remove('x-open');
     n.body.hidden = true;
-    n.button.setAttribute('aria-expanded', 'false');
+    if (n.button) n.button.setAttribute('aria-expanded', 'false');
   }
 
+  // Closes menus and context menus (both carry data-xid; popups inside menus do not).
   closeMenus(except) {
-    for (const el of this.rootEl.querySelectorAll('.x-menu.x-open')) {
+    for (const el of this.rootEl.querySelectorAll('.x-open[data-xid]')) {
       const n = this.menuOf(el);
       if (n && n !== except && !(except && n.el.contains(except.el))) this.closeMenu(n);
     }
@@ -596,14 +634,14 @@ class XulJ {
       case 'End': items[items.length - 1] && items[items.length - 1].focus(); break;
       case 'ArrowRight':
         if (owner && owner !== n) this.openMenu(owner, 'first');
-        else this.moveTop(n, 1);
+        else if (n.tag === 'menu') this.moveTop(n, 1);
         break;
       case 'ArrowLeft':
-        if (this.isSubmenu(n)) { this.closeMenu(n); n.button.focus(); } else this.moveTop(n, -1);
+        if (this.isSubmenu(n)) { this.closeMenu(n); n.button.focus(); } else if (n.tag === 'menu') this.moveTop(n, -1);
         break;
       case 'Escape':
         this.closeMenu(n);
-        n.button.focus();
+        (n.button || n.returnFocus || document.body).focus();
         break;
       case 'Tab': this.closeMenus(); handled = false; break;
       default: handled = false;
@@ -635,6 +673,178 @@ class XulJ {
     return key.split('+').map((k) => names[k] || (k.length === 1 ? k.toUpperCase() : k[0].toUpperCase() + k.slice(1))).join('+');
   }
 
+  // ---- context menus -----------------------------------------------------------
+
+  onContextMenu(e) {
+    if (!(e.target instanceof Element) || !this.rootEl.contains(e.target)) return;
+    const rowEl = e.target.closest('.x-row');
+    const treeEl = rowEl && rowEl.closest('.x-tree');
+    if (rowEl && treeEl) {
+      // Right-clicking an unselected row selects it first, as on the desktop.
+      const n = this.nodes.get(treeEl.dataset.xid);
+      const i = Number(rowEl.dataset.index);
+      if (n && this.resolved(n).seltype && this.resolved(n).seltype !== 'none' && !n.sel.has(i)) this.select(n, [i], i);
+    }
+    // Selecting repaints the rows (detaching the target), so look up from the tree itself.
+    if (this.openContextMenuFor(treeEl || e.target, e.clientX, e.clientY)) e.preventDefault();
+  }
+
+  // Finds the nearest element (from target outwards) with a `contextmenu` and opens that popup.
+  openContextMenuFor(target, x, y) {
+    for (let el = target; el && el !== this.rootEl; el = el.parentElement) {
+      const owner = el.dataset && el.dataset.xid ? this.nodes.get(el.dataset.xid) : null;
+      const popupId = owner && this.resolved(owner).contextmenu;
+      if (!popupId) continue;
+      const popup = this.nodes.get(popupId);
+      if (!popup || popup.tag !== 'menupopup' || el.closest('[inert]')) return false;
+      this.openPopupAt(popup, x, y, owner);
+      return true;
+    }
+    return false;
+  }
+
+  openPopupAt(n, x, y, owner) {
+    this.closeMenus();
+    n.returnFocus = document.activeElement;
+    n.el.classList.add('x-open');
+    n.el.hidden = false;
+    n.el.style.left = `${x}px`;
+    n.el.style.top = `${y}px`;
+    const pr = n.el.getBoundingClientRect();
+    if (pr.right > window.innerWidth - 4) n.el.style.left = `${Math.max(4, window.innerWidth - pr.width - 4)}px`;
+    if (pr.bottom > window.innerHeight - 4) n.el.style.top = `${Math.max(4, window.innerHeight - pr.height - 4)}px`;
+    const first = this.menuItems(n.el)[0];
+    if (first) first.focus();
+    // Lets the producer run the app's "menu opening" hooks; the menu is already open meanwhile.
+    this.send({ op: 'contextmenu', id: n.id, target: owner.id });
+  }
+
+  // ---- selection -------------------------------------------------------------------
+
+  rowIndex(e) {
+    const row = e.target instanceof Element && e.target.closest('.x-row');
+    return row ? Number(row.dataset.index) : -1;
+  }
+
+  rowClick(n, e) {
+    const i = this.rowIndex(e);
+    const type = this.resolved(n).seltype;
+    if (i < 0 || !type || type === 'none') return;
+    let next;
+    if (type === 'multiple' && e.shiftKey && n.anchor >= 0) {
+      const [a, b] = [Math.min(n.anchor, i), Math.max(n.anchor, i)];
+      next = Array.from({ length: b - a + 1 }, (_, k) => a + k);
+    } else if (type === 'multiple' && (e.ctrlKey || e.metaKey)) {
+      next = n.sel.has(i) ? [...n.sel].filter((k) => k !== i) : [...n.sel, i];
+      n.anchor = i;
+    } else {
+      next = [i];
+      n.anchor = i;
+    }
+    this.select(n, next, i);
+  }
+
+  // Shows the selection at once and tells the producer; its echo confirms (or corrects) it.
+  select(n, rows, cursor) {
+    const sorted = [...new Set(rows)].sort((a, b) => a - b);
+    n.sel = new Set(sorted);
+    n.cursor = cursor;
+    if (n.anchor === undefined || n.anchor < 0) n.anchor = cursor;
+    this.paintTree(n, false);
+    this.send({ op: 'select', id: n.id, rows: sorted });
+  }
+
+  treeKey(n, e) {
+    const type = this.resolved(n).seltype;
+    if (!type || type === 'none' || e.target !== n.el) return;
+    const count = this.source(n.attrs.rows.source).rows.length;
+    if (!count) return;
+    const page = Math.max(1, Math.floor(n.viewport.clientHeight / this.rowH) - 1);
+    const cur = n.cursor >= 0 ? n.cursor : (n.sel.size ? Math.min(...n.sel) : -1);
+    let next = null;
+    switch (e.key) {
+      case 'ArrowDown': next = Math.min(count - 1, cur + 1); break;
+      case 'ArrowUp': next = Math.max(0, cur - 1); break;
+      case 'PageDown': next = Math.min(count - 1, cur + page); break;
+      case 'PageUp': next = Math.max(0, cur - page); break;
+      case 'Home': next = 0; break;
+      case 'End': next = count - 1; break;
+      case 'Enter':
+        if (cur >= 0) this.send({ op: 'activate', id: n.id, row: cur });
+        return e.preventDefault();
+      default: return;
+    }
+    e.preventDefault();
+    if (type === 'multiple' && e.shiftKey && n.anchor >= 0) {
+      const [a, b] = [Math.min(n.anchor, next), Math.max(n.anchor, next)];
+      this.select(n, Array.from({ length: b - a + 1 }, (_, k) => a + k), next);
+    } else {
+      n.anchor = next;
+      this.select(n, [next], next);
+    }
+    const top = next * this.rowH, vp = n.viewport;
+    if (top < vp.scrollTop) vp.scrollTop = top;
+    else if (top + this.rowH > vp.scrollTop + vp.clientHeight) vp.scrollTop = top + this.rowH - vp.clientHeight;
+  }
+
+  // ---- theme -------------------------------------------------------------------------
+
+  // Producer themes are design tokens, never CSS. The viewer wins: high contrast ignores producer
+  // colours, dark mode uses only an explicit dark palette, and token pairs that would fall below
+  // WCAG contrast are dropped. Non-colour tokens (radius, density, font) always apply.
+  applyTheme() {
+    const st = this.rootEl.style;
+    for (const v of XulJ.THEME_VARS) st.removeProperty(v);
+    this.rootEl.classList.remove('x-density-compact', 'x-density-comfortable');
+    this.themeDropped = [];
+    this.rowH = 22;
+    const t = this.theme;
+    if (!t) return this.repaintTrees();
+    const mq = (q) => Boolean(window.matchMedia && window.matchMedia(q).matches);
+    const dark = mq('(prefers-color-scheme: dark)');
+    const contrast = mq('(prefers-contrast: more)') || mq('(forced-colors: active)');
+    const base = t.tokens || {};
+    let colors = {};
+    if (!contrast) colors = dark ? { ...(t.dark || {}) } : { ...base };
+    // Effective colours: producer tokens over the stylesheet defaults.
+    const css = getComputedStyle(this.rootEl);
+    const eff = (k) => colors[k] || css.getPropertyValue(XulJ.TOKEN_VARS[k]).trim();
+    const pairs = [['text', 'surface', 4.5], ['text', 'background', 4.5], ['accentText', 'accent', 4.5], ['muted', 'surface', 3], ['danger', 'surface', 3]];
+    for (const [fg, bg, min] of pairs) {
+      if (!(fg in colors) && !(bg in colors)) continue;
+      const ratio = XulJ.contrast(eff(fg), eff(bg));
+      if (ratio !== null && ratio < min) {
+        this.themeDropped.push(`${fg}/${bg} ${ratio.toFixed(2)}:1`);
+        delete colors[fg];
+        delete colors[bg];
+      }
+    }
+    for (const [k, v] of Object.entries(colors)) if (XulJ.TOKEN_VARS[k]) st.setProperty(XulJ.TOKEN_VARS[k], v);
+    if (typeof base.radius === 'number') st.setProperty('--x-radius', `${base.radius}px`);
+    if (base.font && XulJ.FONTS[base.font]) st.setProperty('--x-font', XulJ.FONTS[base.font]);
+    if (base.density === 'compact' || base.density === 'comfortable') this.rootEl.classList.add(`x-density-${base.density}`);
+    this.rowH = { compact: 20, comfortable: 28 }[base.density] || 22;
+    this.repaintTrees();
+  }
+
+  repaintTrees() {
+    for (const n of this.nodes.values()) if (n.tag === 'tree') this.paintTree(n, false);
+  }
+
+  static contrast(a, b) {
+    const rgb = (c) => {
+      const m = /^#([0-9a-f]{6})$/i.exec(c || '');
+      if (!m) return null;
+      return [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    };
+    const la = rgb(a), lb = rgb(b);
+    if (!la || !lb) return null;
+    const lum = (l) => 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2];
+    const [x, y] = [lum(la), lum(lb)].sort((p, q) => q - p);
+    return (x + 0.05) / (y + 0.05);
+  }
+
   // ---- tabbox ------------------------------------------------------------
 
   syncTabs(box) {
@@ -661,18 +871,22 @@ class XulJ {
     if (!n || !n.el.isConnected) return;
     const rows = this.source(n.attrs.rows.source).rows;
     const vp = n.viewport;
-    const wasAtBottom = vp.scrollTop + vp.clientHeight >= vp.scrollHeight - ROW_H * 2;
-    n.sizer.style.height = `${rows.length * ROW_H}px`;
+    const wasAtBottom = vp.scrollTop + vp.clientHeight >= vp.scrollHeight - this.rowH * 2;
+    n.sizer.style.height = `${rows.length * this.rowH}px`;
     if (dataChanged && wasAtBottom) vp.scrollTop = vp.scrollHeight;
-    const first = Math.max(0, Math.floor(vp.scrollTop / ROW_H) - 5);
-    const last = Math.min(rows.length, first + Math.ceil(vp.clientHeight / ROW_H) + 10);
+    const first = Math.max(0, Math.floor(vp.scrollTop / this.rowH) - 5);
+    const last = Math.min(rows.length, first + Math.ceil(vp.clientHeight / this.rowH) + 10);
     const cols = n.attrs.cols;
     const frag = document.createDocumentFragment();
     for (let i = first; i < last; i++) {
       const r = rows[i];
       const row = document.createElement('div');
-      row.className = `x-row x-level-${r.level || ''}`;
-      row.style.transform = `translateY(${i * ROW_H}px)`;
+      row.className = `x-row x-level-${r.level || ''}${n.sel && n.sel.has(i) ? ' x-selected' : ''}${i === n.cursor ? ' x-cursor' : ''}`;
+      row.dataset.index = i;
+      row.setAttribute('role', 'row');
+      if (n.sel && n.sel.size) row.setAttribute('aria-selected', String(n.sel.has(i)));
+      row.style.height = `${this.rowH}px`;
+      row.style.transform = `translateY(${i * this.rowH}px)`;
       for (const c of cols) {
         const cell = document.createElement('div');
         cell.className = 'x-cell';
@@ -693,9 +907,13 @@ class XulJ {
   }
 
   onKey(e) {
-    if (e.key === 'Escape' && this.rootEl.querySelector('.x-menu.x-open')) {
+    if (e.key === 'Escape' && this.rootEl.querySelector('.x-open[data-xid]')) {
       this.closeMenus();
       return e.preventDefault();
+    }
+    if ((e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) && this.rootEl.contains(document.activeElement)) {
+      const r = document.activeElement.getBoundingClientRect();
+      if (this.openContextMenuFor(document.activeElement, r.left + 8, r.top + Math.min(r.height, this.rowH))) return e.preventDefault();
     }
     const combo = [e.ctrlKey && 'ctrl', e.altKey && 'alt', e.shiftKey && 'shift', e.metaKey && 'meta', e.key.toLowerCase()]
       .filter(Boolean).join('+');
@@ -715,5 +933,17 @@ class XulJ {
   }
 }
 XulJ.anon = 0;
+XulJ.TOKEN_VARS = {
+  accent: '--accent', accentText: '--accent-text', surface: '--surface', background: '--bg', chrome: '--chrome',
+  text: '--text', muted: '--muted', border: '--border', danger: '--danger', warning: '--warn', success: '--success',
+};
+XulJ.THEME_VARS = [...Object.values(XulJ.TOKEN_VARS), '--x-radius', '--x-font'];
+XulJ.FONTS = {
+  system: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+  serif: 'Georgia, "Times New Roman", serif',
+  mono: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+  rounded: 'ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif',
+  classic: 'Tahoma, Verdana, "MS Sans Serif", sans-serif',
+};
 
 window.XulJ = XulJ;

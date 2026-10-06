@@ -10,6 +10,7 @@
   --danger: #b3261e;
   --warn: #8a5a00;
   --err: #b3261e;
+  --success: #1e7d45;
   --row-alt: #f8f7f3;
   --skeleton: #e4e1d8;
   --skeleton-hi: #f0eee8;
@@ -27,6 +28,7 @@
     --danger: #ff8a80;
     --warn: #f0b85a;
     --err: #ff8a80;
+    --success: #6fd394;
     --row-alt: #24241f;
     --skeleton: #2c2c28;
     --skeleton-hi: #383833;
@@ -46,7 +48,7 @@ body {
 
 /* ---- XUL box model: everything is a flex box ---------------------------- */
 .x { min-width: 0; min-height: 0; }
-.x-root { flex: 1; display: flex; flex-direction: column; }
+.x-root { flex: 1; display: flex; flex-direction: column; font-family: var(--x-font, inherit); color: var(--text); }
 .x-window, .x-vbox, .x-tabpanel, .x-panels, .x-tabbox, .x-groupbox > .x-body { display: flex; flex-direction: column; gap: 6px; }
 .x-hbox, .x-toolbar, .x-statusbar { display: flex; flex-direction: row; align-items: center; gap: 6px; }
 .x-box { display: flex; }
@@ -56,7 +58,7 @@ body {
   flex: 1;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: calc(var(--x-radius, 5px) + 3px);
   overflow: hidden;
   gap: 0;
 }
@@ -75,12 +77,24 @@ fieldset.x-groupbox { border: 1px solid var(--border); border-radius: 6px; paddi
 fieldset.x-groupbox legend { color: var(--muted); padding: 0 4px; }
 p.x-description { margin: 0; }
 .x-muted { color: var(--muted); }
+.x-label.x-danger, .x-description.x-danger { color: var(--danger); }
+.x-warning { color: var(--warn); }
+.x-success { color: var(--success); }
+
+/* ---- density (theme) ----------------------------------------------------- */
+.x-density-compact button.x-button, .x-density-compact button.x-toolbarbutton,
+.x-density-compact select.x-menulist, .x-density-compact input.x-textbox { min-height: 22px; padding: 1px 8px; }
+.x-density-compact .x-toolbar { padding: 3px 6px; }
+.x-density-compact .x-window, .x-density-compact .x-vbox, .x-density-compact .x-hbox { gap: 4px; }
+.x-density-comfortable button.x-button, .x-density-comfortable button.x-toolbarbutton,
+.x-density-comfortable select.x-menulist, .x-density-comfortable input.x-textbox { min-height: 36px; padding: 6px 14px; }
+.x-density-comfortable .x-toolbar { padding: 10px 12px; }
 .x-mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
 .x-checkbox { display: inline-flex; align-items: center; gap: 6px; }
 
 button.x-button, button.x-toolbarbutton, select.x-menulist, input.x-textbox {
   font: inherit; color: var(--text); background: var(--surface);
-  border: 1px solid var(--border); border-radius: 5px; padding: 4px 10px; min-height: 28px;
+  border: 1px solid var(--border); border-radius: var(--x-radius, 5px); padding: 4px 10px; min-height: 28px;
 }
 button.x-button, button.x-toolbarbutton { cursor: pointer; }
 button.x-primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
@@ -92,7 +106,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, .x-tab:focus-vi
 progress.x-progressmeter { width: 140px; accent-color: var(--accent); }
 
 /* ---- tree --------------------------------------------------------------- */
-.x-tree { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 4px; min-height: 120px; }
+.x-tree { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: max(0px, calc(var(--x-radius, 5px) - 1px)); min-height: 120px; background: var(--surface); }
+.x-tree[tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.x-tree .x-row.x-selected { background: var(--accent); color: var(--accent-text); }
+.x-tree .x-row.x-selected[class*="x-level-"] { color: var(--accent-text); }
+.x-tree:focus .x-row.x-cursor { box-shadow: inset 0 0 0 1px var(--text); }
+.x-tree[tabindex] .x-row { cursor: default; user-select: none; }
 .x-tree-head { display: flex; background: var(--chrome); border-bottom: 1px solid var(--border); font-weight: 600; }
 .x-tree-viewport { flex: 1; overflow: auto; position: relative; }
 .x-tree-sizer { position: relative; }
@@ -126,7 +145,7 @@ progress.x-progressmeter { width: 140px; accent-color: var(--accent); }
 .x-menupopup {
   position: fixed; z-index: 30; min-width: 190px; max-height: calc(100vh - 8px); overflow-y: auto;
   display: flex; flex-direction: column; padding: 4px; gap: 0;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  background: var(--surface); border: 1px solid var(--border); border-radius: calc(var(--x-radius, 5px) + 1px); box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
 }
 .x-menupopup > .x-menuitem, .x-menupopup > .x-menu > .x-menu-button {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; white-space: nowrap;

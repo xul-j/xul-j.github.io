@@ -1,5 +1,5 @@
 // Minimal JSON Schema subset validator (const, enum, type, required, properties,
-// additionalProperties, items, minimum, pattern, $ref, allOf, oneOf).
+// additionalProperties, items, minimum, maximum, pattern, $ref, allOf, oneOf).
 // oneOf branches are pre-filtered on the `op` const, so errors point at the right branch.
 (function (root) {
 'use strict';
@@ -26,6 +26,7 @@ function makeValidator(schema) {
       if (!ok) { errs.push(`${path}: expected ${s.type}, got ${t}`); return; }
     }
     if (typeof v === 'number' && 'minimum' in s && v < s.minimum) errs.push(`${path}: below ${s.minimum}`);
+    if (typeof v === 'number' && 'maximum' in s && v > s.maximum) errs.push(`${path}: above ${s.maximum}`);
     if (typeof v === 'string' && s.pattern && !new RegExp(s.pattern).test(v)) errs.push(`${path}: does not match ${s.pattern}`);
     if (s.allOf) s.allOf.forEach((sub) => check(sub, v, path, errs));
     if (s.oneOf) {
@@ -43,6 +44,7 @@ function makeValidator(schema) {
       for (const [k, val] of Object.entries(v)) {
         if (s.properties && k in s.properties) check(s.properties[k], val, `${path}.${k}`, errs);
         else if (typeof s.additionalProperties === 'object') check(s.additionalProperties, val, `${path}.${k}`, errs);
+        else if (s.additionalProperties === false) errs.push(`${path}: unexpected "${k}"`);
       }
     }
     if (Array.isArray(v) && s.items) v.forEach((item, i) => check(s.items, item, `${path}[${i}]`, errs));
