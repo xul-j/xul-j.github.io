@@ -280,9 +280,12 @@ item "Delete order…" [deleteSelectedItem] → cmd_deleteSelectedItem
       </table>
       <p class="small-print">
         Widgets: window (optionally modal), vbox, hbox, box, spacer, groupbox, toolbar, statusbar,
-        menubar, menu, menuitem, menuseparator, label, description, button, toolbarbutton, textbox,
+        menubar, menu, menuitem, menuseparator, menupopup, label, description, button, toolbarbutton, textbox,
         checkbox, menulist, tabbox, tabpanel, deck, tree, progressmeter, filepicker, pending. Menus open
-        and close in the browser; only choosing an item is sent back.
+        and close in the browser; only choosing an item is sent back. The browser answers with intents:
+        <code>do</code>, <code>input</code>, <code>select</code>, <code>activate</code> and
+        <code>contextmenu</code>, plus uploads for file pickers. The full reference is in the
+        <a href="https://github.com/xul-j/xul-j#the-protocol">xul-j README</a>.
       </p>
     </section>
 
