@@ -12,6 +12,7 @@
     <nav class="wrap">
       <a class="brand" href="#">XUL-J</a>
       <span class="links">
+        <a href="generate.html">Generator</a>
         <a href="#how">How it works</a>
         <a href="#transports">Transports</a>
         <a href="#bridges">Bridges</a>
@@ -33,6 +34,7 @@
       </p>
       <p class="cta">
         <a class="button primary" href="#demo">Try the live demo</a>
+        <a class="button" href="generate.html">Have a model build one</a>
         <a class="button" href="https://github.com/xul-j/xul-j">Read the code</a>
       </p>
     </section>
@@ -47,6 +49,38 @@
         log placeholder fill in, a plugin add a <strong>Rollback</strong> button after the fact,
         and pick <em>production</em> to get a modal confirmation.
       </p>
+    </section>
+
+    <section id="generate" class="wrap">
+      <h2>Let a model build it, and run it</h2>
+      <div class="cols">
+        <div>
+          <p>
+            The protocol is small enough for a language model to write as it goes. In the
+            <a href="generate.html">generator</a> you describe an interface and a model streams it
+            as XUL-J, one JSON line at a time. Every line is checked against the schema before
+            it is rendered, so you watch the UI assemble itself, and anything malformed is
+            rejected rather than displayed.
+          </p>
+          <p>
+            Then the model becomes the app's backend. Typing stays in your browser. Clicking an
+            action sends <code>{"do":"cmd_add","inputs":{…}}</code>, and the model answers with
+            operations that update rows, totals and messages, or open a confirmation dialog. You
+            can also ask for changes in plain words.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Bring your own key</h3>
+          <p>
+            The generator calls <a href="https://openrouter.ai">OpenRouter</a> directly from your
+            browser, with any model you choose. <strong>Sign in with OpenRouter</strong> issues a key
+            you control, or you can paste one. It is kept in this tab (or on this device, if you
+            ask), sent only to openrouter.ai, and can be forgotten with one click. There is no XUL-J
+            server in between. The generated interface is data, never code: the renderer runs
+            nothing it receives.
+          </p>
+        </div>
+      </div>
     </section>
 
     <section id="how" class="wrap">

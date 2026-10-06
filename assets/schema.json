@@ -1,0 +1,470 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "xulj/0.1/op",
+  "title": "XUL-J stream operation (server -> client)",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/node"
+    },
+    {
+      "$ref": "#/$defs/replace"
+    },
+    {
+      "$ref": "#/$defs/set"
+    },
+    {
+      "$ref": "#/$defs/remove"
+    },
+    {
+      "$ref": "#/$defs/command"
+    },
+    {
+      "$ref": "#/$defs/broadcast"
+    },
+    {
+      "$ref": "#/$defs/rows"
+    },
+    {
+      "$ref": "#/$defs/reset"
+    },
+    {
+      "$ref": "#/$defs/download"
+    },
+    {
+      "$ref": "#/$defs/notify"
+    }
+  ],
+  "$defs": {
+    "seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_.-]*$"
+    },
+    "tag": {
+      "enum": [
+        "window",
+        "vbox",
+        "hbox",
+        "box",
+        "spacer",
+        "groupbox",
+        "toolbar",
+        "statusbar",
+        "label",
+        "description",
+        "button",
+        "toolbarbutton",
+        "textbox",
+        "checkbox",
+        "menulist",
+        "tabbox",
+        "tabpanel",
+        "deck",
+        "tree",
+        "progressmeter",
+        "pending",
+        "filepicker"
+      ]
+    },
+    "element": {
+      "type": "object",
+      "required": [
+        "tag"
+      ],
+      "properties": {
+        "tag": {
+          "$ref": "#/$defs/tag"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "flex": {
+          "type": "number",
+          "minimum": 0
+        },
+        "label": {
+          "type": "string"
+        },
+        "value": {},
+        "hint": {
+          "$ref": "#/$defs/tag"
+        },
+        "command": {
+          "$ref": "#/$defs/id"
+        },
+        "observes": {
+          "type": "object",
+          "description": "attribute name -> broadcaster id; the attribute follows the broadcaster's value",
+          "additionalProperties": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "class": {
+          "enum": [
+            "primary",
+            "danger",
+            "muted",
+            "mono"
+          ]
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "value",
+              "label"
+            ]
+          }
+        },
+        "selectedIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cols": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "flex": {
+                "type": "number"
+              },
+              "width": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "rows": {
+          "type": "object",
+          "required": [
+            "source"
+          ],
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/id"
+            }
+          }
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/element"
+          }
+        },
+        "order": {
+          "type": "number",
+          "description": "sibling position; used when ops can arrive out of order (e.g. retained MQTT topics)"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "preferred width in px (layout hint)"
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "preferred height in px (layout hint)"
+        },
+        "align": {
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ],
+          "description": "cross-axis alignment of a box's children"
+        },
+        "password": {
+          "type": "boolean",
+          "description": "textbox masks its value"
+        },
+        "modal": {
+          "type": "boolean",
+          "description": "window: blocks the other windows until it closes"
+        },
+        "icon": {
+          "enum": [
+            "info",
+            "warning",
+            "error",
+            "question"
+          ],
+          "description": "window: kind of message, for dialogs"
+        },
+        "accept": {
+          "type": "string",
+          "description": "filepicker: accepted types, as in <input accept>"
+        },
+        "multiple": {
+          "type": "boolean",
+          "description": "filepicker: allow several files"
+        },
+        "multiline": {
+          "type": "boolean",
+          "description": "textbox: several lines (fixed when the element is created)"
+        }
+      }
+    },
+    "node": {
+      "description": "Insert an element (with optional nested children) into parent `in`. This is a XUL overlay applied live.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/element"
+        }
+      ],
+      "type": "object",
+      "required": [
+        "op",
+        "in",
+        "tag"
+      ],
+      "properties": {
+        "op": {
+          "const": "node"
+        },
+        "seq": {
+          "$ref": "#/$defs/seq"
+        },
+        "in": {
+          "$ref": "#/$defs/id"
+        },
+        "before": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "replace": {
+      "description": "Swap the element `id` for a new one (typically a `pending` placeholder becoming the real widget).",
+      "allOf": [
+        {
+          "$ref": "#/$defs/element"
+        }
+      ],
+      "type": "object",
+      "required": [
+        "op",
+        "id",
+        "tag"
+      ],
+      "properties": {
+        "op": {
+          "const": "replace"
+        },
+        "seq": {
+          "$ref": "#/$defs/seq"
+        }
+      }
+    },
+    "set": {
+      "type": "object",
+      "required": [
+        "op",
+        "id",
+        "attrs"
+      ],
+      "properties": {
+        "op": {
+          "const": "set"
+        },
+        "seq": {
+          "$ref": "#/$defs/seq"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "attrs": {
+          "type": "object"
+        },
+        "replace": {
+          "type": "boolean",
+          "description": "attrs replace the element's attributes instead of merging"
+        }
+      }
+    },
+    "remove": {
+      "type": "object",
+      "required": [
+        "op",
+        "id"
+      ],
+      "properties": {
+        "op": {
+          "const": "remove"
+        },
+        "seq": {
+          "$ref": "#/$defs/seq"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "command": {
+      "description": "Declare or update an intent. Every widget with command=<id> follows it.",
+      "type": "object",
+      "required": [
+        "op",
+        "id"
+      ],
+      "properties": {
+        "op": {
+          "const": "command"
+        },
+        "seq": {
+          "$ref": "#/$defs/seq"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^((ctrl|alt|shift|meta)\\+)*[a-z0-9]+$"
+        },
+        "deleted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "broadcast": {
+      "type": "object",
+      "required": [
+        "op",
+        "id",
+        "value"
+      ],
+      "properties": {
+        "op": {
+          "const": "broadcast"
+        },
+        "seq": {
+          "$ref": "#/$defs/seq"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "value": {}
+      }
+    },
+    "rows": {
+      "description": "Data for every tree bound to `source`.",
+      "type": "object",
+      "required": [
+        "op",
+        "source"
+      ],
+      "properties": {
+        "op": {
+          "const": "rows"
+        },
+        "seq": {
+          "$ref": "#/$defs/seq"
+        },
+        "source": {
+          "$ref": "#/$defs/id"
+        },
+        "clear": {
+          "type": "boolean"
+        },
+        "append": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "reset": {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "const": "reset"
+        },
+        "seq": {
+          "$ref": "#/$defs/seq"
+        }
+      }
+    },
+    "download": {
+      "description": "Transient (never replayed): the client should download a file the host produced.",
+      "type": "object",
+      "required": [
+        "op",
+        "url",
+        "name"
+      ],
+      "properties": {
+        "op": {
+          "const": "download"
+        },
+        "seq": {
+          "$ref": "#/$defs/seq"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^/download/[A-Za-z0-9_-]+$"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "notify": {
+      "description": "Transient (never replayed): a short message for the user.",
+      "type": "object",
+      "required": [
+        "op",
+        "message"
+      ],
+      "properties": {
+        "op": {
+          "const": "notify"
+        },
+        "seq": {
+          "$ref": "#/$defs/seq"
+        },
+        "message": {
+          "type": "string"
+        },
+        "level": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ]
+        }
+      }
+    }
+  }
+}

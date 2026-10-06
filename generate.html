@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XUL-J Generator</title>
+  <meta name="description" content="Describe an interface; a language model streams it as XUL-J operations, validated line by line, and then acts as its backend. Bring your own OpenRouter key.">
+  <link rel="stylesheet" href="assets/xul.css">
+  <style>
+    #controls {
+      display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-start;
+      padding: 12px; border-bottom: 1px solid var(--border); background: var(--surface);
+    }
+    #controls a.home { font-weight: 800; color: var(--text); text-decoration: none; align-self: center; }
+    #auth, #gen { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    #gen { flex: 1 1 520px; }
+    #auth { flex: 0 1 auto; margin-left: auto; }
+    #prompt { flex: 1 1 280px; min-height: 38px; height: 38px; resize: vertical; }
+    .ctl { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 6px 10px; min-height: 32px; }
+    button.ctl { cursor: pointer; }
+    button.ctl.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+    button.ctl:disabled { opacity: .45; cursor: default; }
+    select.ctl { max-width: 260px; }
+    #key { width: 220px; }
+    .muted { color: var(--muted); font-size: 12px; }
+    #examples { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+    #examples button { font: inherit; font-size: 12px; border: 1px solid var(--border); background: none; color: var(--muted); border-radius: 99px; padding: 2px 10px; cursor: pointer; }
+    #examples button:hover { color: var(--text); }
+    #state { min-height: 1.4em; }
+    #state.busy::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1s infinite; }
+    @keyframes pulse { 50% { opacity: .2; } }
+    @media (prefers-reduced-motion: reduce) { #state.busy::before { animation: none; } }
+    #wire-log .rej { color: var(--err); }
+    #wire-log .note { color: var(--muted); font-style: italic; }
+    #empty { margin: auto; max-width: 34em; text-align: center; color: var(--muted); padding: 24px; }
+    #empty h1 { color: var(--text); font-size: 22px; margin: 0 0 8px; }
+    #root:not(:empty) + #empty, #root:not(:empty) ~ #empty { display: none; }
+    #stage { flex: 1; display: flex; min-width: 0; min-height: 0; }
+    #root:empty { display: none; }
+    @media (max-width: 700px) { #auth { margin-left: 0; } #key { width: 100%; } select.ctl { max-width: 100%; } }
+  </style>
+</head>
+<body>
+  <header id="controls">
+    <a class="home" href="./">XUL-J</a>
+    <div id="gen">
+      <textarea id="prompt" class="ctl" placeholder="Describe an interface, e.g. “a pizza order form with a cart and a total”" aria-label="Describe the interface"></textarea>
+      <select id="model" class="ctl" aria-label="Model"><option>Loading models…</option></select>
+      <button type="button" id="go" class="ctl primary">Generate</button>
+      <button type="button" id="stop" class="ctl" disabled>Stop</button>
+      <div id="examples" aria-label="Examples"></div>
+    </div>
+    <div id="auth"></div>
+  </header>
+  <main id="app">
+    <div id="stage">
+      <div id="root" class="x x-root"></div>
+      <div id="empty">
+        <h1>Describe it. Watch it stream.</h1>
+        <p>A language model writes the interface as XUL-J operations, one JSON line at a time. Each
+        line is checked against the protocol schema and rendered as it arrives. Afterwards the
+        model acts as the app's backend: your clicks go back to it, and it answers with updates.</p>
+        <p>Bring your own OpenRouter key: sign in or paste one. It stays in your browser and is sent
+        only to openrouter.ai.</p>
+      </div>
+    </div>
+    <aside id="wire">
+      <header>
+        <strong>Wire</strong>
+        <span id="wire-count">0 ops</span>
+        <label><input type="checkbox" id="wire-pause"> pause</label>
+      </header>
+      <ol id="wire-log" aria-live="off"></ol>
+    </aside>
+  </main>
+  <footer id="dev">
+    <span id="state" role="status"></span>
+    <form id="refine" style="display:contents">
+      <input id="change" class="ctl" style="flex:1;min-width:0" placeholder="Ask for changes, e.g. “add a delivery date picker”" aria-label="Ask for changes" disabled>
+      <button type="submit" id="change-go" class="ctl" disabled>Change</button>
+    </form>
+    <button type="button" id="wire-toggle">Hide wire</button>
+  </footer>
+  <script src="assets/xulj.js"></script>
+  <script src="assets/validate.js"></script>
+  <script src="assets/generate.js"></script>
+</body>
+</html>
