@@ -383,6 +383,8 @@ class XulJ {
     if (a.align) el.style.alignItems = { start: 'flex-start', end: 'flex-end', center: 'center', stretch: 'stretch' }[a.align];
     if (typeof a.order === 'number') el.dataset.order = a.order;
     el.hidden = Boolean(a.hidden);
+    // A context menu is shown only while open; its attributes must not un-hide it.
+    if (n.tag === 'menupopup') el.hidden = Boolean(a.hidden) || !el.classList.contains('x-open');
     el.classList.toggle('x-primary', a.class === 'primary');
     el.classList.toggle('x-danger', a.class === 'danger');
     el.classList.toggle('x-muted', a.class === 'muted');
