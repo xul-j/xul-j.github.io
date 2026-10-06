@@ -106,6 +106,7 @@ pre .c { color: var(--comment); }
 @media (max-width: 760px) { .cards { grid-template-columns: 1fr; } }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; }
 .card p { margin: 0; color: var(--muted); }
+.card p.more { margin-top: 12px; }
 .card h3 a { color: var(--text); }
 .tag { font-size: .75rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 99px; vertical-align: middle; margin-left: 6px; }
 

@@ -1,0 +1,25 @@
+/* Documentation pages (net-bridge, java-bridge): a sticky table of contents beside the text.
+   Builds on style.css. */
+.doc { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 40px; padding-top: 32px; }
+.toc { position: sticky; top: 72px; align-self: start; display: flex; flex-direction: column; gap: 2px; font-size: .9rem; max-height: calc(100vh - 90px); overflow-y: auto; }
+.toc strong { margin-bottom: 6px; }
+.toc a { color: var(--muted); text-decoration: none; padding: 3px 0 3px 10px; border-left: 2px solid var(--border); }
+.toc a:hover { color: var(--text); border-left-color: var(--accent); }
+.content { min-width: 0; max-width: 820px; }
+.content h1 { margin-top: .1em; }
+.content h2 { margin-top: 2.2em; padding-top: 8px; scroll-margin-top: 70px; }
+.content h3 { margin-top: 1.6em; }
+.content h1, .content h3 { scroll-margin-top: 70px; }
+.content p, .content li, .content dd { color: var(--text); }
+.callout { border: 1px solid var(--border); border-left: 4px solid var(--accent); background: var(--surface); border-radius: 8px; padding: 12px 16px; margin: 18px 0; font-size: .95rem; }
+.steps { padding-left: 1.2em; }
+.steps li { margin-bottom: .6em; }
+.faq dt { font-weight: 700; margin-top: 14px; }
+.faq dd { margin: 4px 0 0; color: var(--muted); }
+.links a[aria-current="page"] { color: var(--text); font-weight: 600; }
+@media (max-width: 860px) {
+  .doc { grid-template-columns: 1fr; gap: 8px; }
+  .toc { position: static; max-height: none; flex-direction: row; flex-wrap: wrap; gap: 6px 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .toc strong { width: 100%; margin: 0; }
+  .toc a { border-left: 0; padding: 0; }
+}
